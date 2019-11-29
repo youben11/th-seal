@@ -1,5 +1,10 @@
 # Torch SEAL
 
+### Note
+
+This branch only uses pybind11 to bind SEAL functionalities to Python. It's not built around PyTorch.
+
+
 This repo is a PoC for building a PyTorch extension around [Microsoft SEAL library](https://github.com/Microsoft/SEAL).
 
 I currently have installed and setuped SEAL manually on my machine. This PyTorch extension is only binding some random SEAL code as th_seal.poc_seal() to check if the compilation, link and import are working correctly.

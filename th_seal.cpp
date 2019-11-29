@@ -1,22 +1,17 @@
 #include <iostream>
-#include <torch/extension.h>
 #include <seal/ciphertext.h>
 #include <seal/context.h>
 #include <seal/keygenerator.h>
 #include <seal/encryptor.h>
 #include <seal/memorymanager.h>
 #include <seal/modulus.h>
+#include <pybind11/pybind11.h>
 
 using namespace seal;
 using namespace seal::util;
 using namespace std;
 
-torch::Tensor d_sigmoid(torch::Tensor z) {
-  auto s = torch::sigmoid(z);
-  return (1 - s) * s;
-}
-
-void test(torch::Tensor z) {
+void test() {
   // Some random code from SEAL's test
   // just to make sure the extension should work with SEAL
 
@@ -44,7 +39,6 @@ void test(torch::Tensor z) {
   ctxt2.load(context, stream);
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("d_sigmoid", &d_sigmoid, "test func");
-  m.def("poc_seal", &test, "seal func");
+PYBIND11_MODULE(th_seal, m) {
+  m.def("poc_seal", &test, "seal func4");
 }
