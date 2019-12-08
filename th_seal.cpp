@@ -1,4 +1,5 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <seal/seal.h>
 #include <iostream>
 
@@ -22,7 +23,8 @@ std::shared_ptr<seal::SEALContext> get_context(EncryptionParameters parms) {
     return context;
 }
 
-Ciphertext encrypt(std::shared_ptr<seal::SEALContext> context, PublicKey pub_key, double pt){
+Ciphertext encrypt(std::shared_ptr<seal::SEALContext> context,
+                   PublicKey pub_key, vector<double> pt) {
     static double scale = pow(2.0, 40);
 
     Encryptor encryptor(context, pub_key);
@@ -36,7 +38,8 @@ Ciphertext encrypt(std::shared_ptr<seal::SEALContext> context, PublicKey pub_key
     return ciphertext;
 }
 
-double decrypt(std::shared_ptr<seal::SEALContext> context, SecretKey secret_key, Ciphertext ct){
+vector<double> decrypt(std::shared_ptr<seal::SEALContext> context,
+                       SecretKey secret_key, Ciphertext ct) {
     Decryptor decryptor(context, secret_key);
     CKKSEncoder encoder(context);
     Plaintext plain_text;
@@ -45,12 +48,7 @@ double decrypt(std::shared_ptr<seal::SEALContext> context, SecretKey secret_key,
     vector<double> pt;
     encoder.decode(plain_text, pt);
 
-    cout << "Debug: ";
-    for (int i=0; i < pt.size(); ++i)
-        cout << pt[i] << " ";
-    cout << endl;
-
-    return pt[0];
+    return pt;
 }
 
 PYBIND11_MODULE(th_seal, m) {
