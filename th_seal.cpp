@@ -1,44 +1,88 @@
-#include <iostream>
-#include <seal/ciphertext.h>
-#include <seal/context.h>
-#include <seal/keygenerator.h>
-#include <seal/encryptor.h>
-#include <seal/memorymanager.h>
-#include <seal/modulus.h>
 #include <pybind11/pybind11.h>
+#include <seal/seal.h>
+#include <iostream>
 
 using namespace seal;
 using namespace seal::util;
 using namespace std;
+namespace py = pybind11;
 
-void test() {
-  // Some random code from SEAL's test
-  // just to make sure the extension should work with SEAL
+EncryptionParameters get_parms() {
+    EncryptionParameters parms(scheme_type::CKKS);
+    size_t poly_modulus_degree = 8192;
+    parms.set_poly_modulus_degree(poly_modulus_degree);
+    parms.set_coeff_modulus(
+        CoeffModulus::Create(poly_modulus_degree, {60, 40, 40, 60}));
 
-  stringstream stream;
-  EncryptionParameters parms(scheme_type::BFV);
-  parms.set_poly_modulus_degree(2);
-  parms.set_coeff_modulus(CoeffModulus::Create(2, { 30 }));
-  parms.set_plain_modulus(2);
+    return parms;
+}
 
-  auto context = SEALContext::Create(parms, false, sec_level_type::none);
+std::shared_ptr<seal::SEALContext> get_context(EncryptionParameters parms) {
+    auto context = SEALContext::Create(parms);
+    return context;
+}
 
-  Ciphertext ctxt(context);
-  Ciphertext ctxt2;
-  ctxt.save(stream);
-  ctxt2.load(context, stream);
+Ciphertext encrypt(std::shared_ptr<seal::SEALContext> context, PublicKey pub_key, double pt){
+    static double scale = pow(2.0, 40);
 
-  parms.set_poly_modulus_degree(1024);
-  parms.set_coeff_modulus(CoeffModulus::BFVDefault(1024));
-  parms.set_plain_modulus(0xF0F0);
-  context = SEALContext::Create(parms, false);
-  KeyGenerator keygen(context);
-  Encryptor encryptor(context, keygen.public_key());
-  encryptor.encrypt(Plaintext("Ax^10 + 9x^9 + 8x^8 + 7x^7 + 6x^6 + 5x^5 + 4x^4 + 3x^3 + 2x^2 + 1"), ctxt);
-  ctxt.save(stream);
-  ctxt2.load(context, stream);
+    Encryptor encryptor(context, pub_key);
+    CKKSEncoder encoder(context);
+    Plaintext plain_text;
+    Ciphertext ciphertext;
+
+    encoder.encode(pt, scale, plain_text);
+    encryptor.encrypt(plain_text, ciphertext);
+
+    return ciphertext;
+}
+
+double decrypt(std::shared_ptr<seal::SEALContext> context, SecretKey secret_key, Ciphertext ct){
+    Decryptor decryptor(context, secret_key);
+    CKKSEncoder encoder(context);
+    Plaintext plain_text;
+
+    decryptor.decrypt(ct, plain_text);
+    vector<double> pt;
+    encoder.decode(plain_text, pt);
+
+    cout << "Debug: ";
+    for (int i=0; i < pt.size(); ++i)
+        cout << pt[i] << " ";
+    cout << endl;
+
+    return pt[0];
 }
 
 PYBIND11_MODULE(th_seal, m) {
-  m.def("poc_seal", &test, "seal func4");
+    m.def("get_parms", &get_parms, "get parameters");
+    m.def("get_context", &get_context, "get context");
+    m.def("encrypt", &encrypt, "encrypt double");
+    m.def("decrypt", &decrypt, "encrypt double");
+
+    py::class_<KeyGenerator>(m, "KeyGenerator")
+        .def(py::init<std::shared_ptr<seal::SEALContext>&>())
+        .def("public_key", &KeyGenerator::public_key)
+        .def("secret_key", &KeyGenerator::secret_key);
+
+    py::class_<PublicKey>(m, "PublicKey");
+    py::class_<SecretKey>(m, "SecretKey");
+
+    py::class_<Plaintext>(m, "Plaintext");
+    py::class_<Ciphertext>(m, "Ciphertext");
+
+    py::class_<SEALContext, std::shared_ptr<SEALContext>>(m, "SEALContext")
+        .def("Create", &SEALContext::Create, "Create new context",
+             py::arg("expand_mod_chain") = true, py::arg("sec_level") = 128);
+
+    py::class_<EncryptionParameters>(m, "EncryptionParameters")
+        .def("set_poly_modulus_degree",
+             &EncryptionParameters::set_poly_modulus_degree);
+
+    py::class_<Encryptor>(m, "Encryptor")
+        .def(py::init<std::shared_ptr<seal::SEALContext>&, seal::PublicKey>())
+        .def("encrypt", &Encryptor::encrypt);
+
+    py::class_<Decryptor>(m, "Decryptor")
+        .def(py::init<std::shared_ptr<seal::SEALContext>&, seal::SecretKey>())
+        .def("decrypt", &Decryptor::decrypt);
 }
